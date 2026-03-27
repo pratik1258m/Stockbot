@@ -1,0 +1,277 @@
+{% extends 'layout.html' %}
+{% block title %}{{ ticker }} Analysis | Pro Terminal{% endblock %}
+{% block content %}
+{% set symbol = '₹' if base_currency == 'INR' else '$' %}
+<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 animate-fade-in-up">
+  <div>
+    <div class="text-xs font-bold text-muted uppercase tracking-widest mb-2 flex items-center gap-2">
+      <a href="/" class="hover:text-cyan-400 transition">Markets</a>
+      <span>/</span>
+      <span class="text-white">{{ ticker }}</span>
+      <button onclick="toggleCurrency()" id="currToggle" class="ml-4 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold text-slate-300 hover:text-white hover:bg-white/10 transition">
+        {% if base_currency == 'USD' %}Switch to INR{% else %}Switch to USD{% endif %}
+      </button>
+    </div>
+    <h1 class="text-5xl lg:text-6xl font-display font-extrabold tracking-tight mb-1">{{ ticker }}</h1>
+    <p class="text-sm text-slate-400 font-medium">Live AI Processing & Technical Intelligence</p>
+  </div>
+  <div class="mt-6 lg:mt-0 relative group">
+    <div
+      class="absolute -inset-1 bg-gradient-to-r from-{{ 'success' if verdict.action == 'Buy' or verdict.action == 'Strong Buy' else ('danger' if 'Sell' in verdict.action else 'warning') }} to-blue-600 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-500">
+    </div>
+    <div
+      class="relative bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-[2rem] px-8 py-6 text-center min-w-[240px]">
+      <div class="text-[10px] font-bold tracking-[0.2em] text-muted uppercase mb-2">System Verdict</div>
+      <div
+        class="font-display text-4xl font-extrabold mb-1 {% if 'Buy' in verdict.action %}text-success{% elif 'Sell' in verdict.action %}text-danger{% else %}text-warning{% endif %} drop-shadow-[0_0_15px_currentColor]">
+        {{ verdict.action }}
+      </div>
+      <div class="text-xs font-semibold text-slate-300">Risk Assessment: <span class="text-white">{{ verdict.risk
+          }}</span></div>
+    </div>
+  </div>
+</div>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8 animate-fade-in-up stagger-1">
+  <div class="glass-panel p-6">
+    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">Last Traded Price</span>
+    <div class="font-display text-3xl font-bold mb-2"><span class="dynamic-price" data-raw="{{ latest['Close'] }}">{{ symbol }}{{ "%.2f"|format(latest['Close']) }}</span></div>
+    <div
+      class="flex items-center gap-1.5 text-sm font-semibold {% if (latest['Close'] - prev_close) >= 0 %}text-success{% else %}text-danger{% endif %}">
+      {% if (latest['Close'] - prev_close) >= 0 %}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+        <polyline points="18 15 12 9 6 15"></polyline>
+      </svg> +
+      {% else %}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+      {% endif %}
+      {{ "%.2f"|format(latest['Close'] - prev_close) }} ({{ "%.2f"|format((((latest['Close'] - prev_close)/(prev_close or 1.0))*100)|abs) }}%)
+    </div>
+  </div>
+  <div class="glass-panel p-6">
+    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">24H Range (H/L)</span>
+    <div class="font-display text-3xl font-bold mb-2"><span class="dynamic-price" data-raw="{{ latest['High'] }}">{{ symbol }}{{ "%.2f"|format(latest['High']) }}</span></div>
+    <div class="text-sm font-semibold text-slate-400">
+      Low: <span class="dynamic-price" data-raw="{{ latest['Low'] }}">{{ symbol }}{{ "%.2f"|format(latest['Low']) }}</span>
+    </div>
+  </div>
+  <div class="glass-panel p-6">
+    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">Momentum (RSI 14)</span>
+    <div class="font-display text-3xl font-bold mb-3">{{ "%.1f"|format(latest['RSI']) }}</div>
+    <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+      <div class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full"
+        style="width: {{ latest['RSI']|round|int }}%"></div>
+    </div>
+  </div>
+  <div class="glass-panel p-6">
+    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">AI Confidence Score</span>
+    <div
+      class="font-display text-3xl font-bold mb-2 {% if verdict.score >= 0 %}text-success{% else %}text-danger{% endif %}">
+      {{ verdict.score|abs }} / 5
+    </div>
+    <div class="text-sm font-semibold text-slate-400">
+      Computed from {{ df|length }} points
+    </div>
+  </div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 animate-fade-in-up stagger-2">
+  <div class="glass-panel lg:col-span-2 p-6 lg:p-8 flex flex-col">
+    <div class="flex justify-between items-start mb-6 w-full">
+      <div>
+        <h3 class="font-display text-2xl font-bold m-0">Price Action & Volatility</h3>
+        <span class="text-xs font-semibold text-muted mt-1 block">Close Price + Bollinger Bands (20, 2)</span>
+      </div>
+      <div class="pill-btn !px-4 !py-1.5 !text-[11px] !border-cyan-500/30 !text-cyan-400">Live WebGL</div>
+    </div>
+    <div class="relative w-full flex-grow min-h-[350px]">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+  <div class="glass-panel p-6 lg:p-8 bg-gradient-to-b from-slate-900/60 to-slate-950/80 flex flex-col">
+    <h3 class="font-display text-xl font-bold mb-6">Diagnostic Breakdown</h3>
+    <div class="flex flex-col gap-3 flex-grow">
+      {% for reason in verdict.reason.split('\n') %}
+      <div class="flex gap-4 p-4 rounded-2xl bg-black/20 border border-white/5 items-start">
+        <div class="text-cyan-400 mt-0.5 shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <div class="text-sm font-medium text-slate-200 leading-relaxed">{{ reason.replace('- ','') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 animate-fade-in-up stagger-3">
+  <div class="glass-panel p-6 lg:p-8">
+    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-1">Trend Reversal</span>
+    <h3 class="font-display text-xl font-bold mb-6">MACD Histogram</h3>
+    <div class="relative w-full h-[220px]">
+      <canvas id="macdChart"></canvas>
+    </div>
+  </div>
+  <div class="glass-panel p-6 lg:p-8">
+    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-1">Moving Average Cross</span>
+    <h3 class="font-display text-xl font-bold mb-6">SMA 20 vs SMA 50</h3>
+    <div class="relative w-full h-[220px]">
+      <canvas id="smaChart"></canvas>
+    </div>
+  </div>
+</div>
+<div class="glass-panel p-6 lg:p-8 mb-10 animate-fade-in-up stagger-4 overflow-hidden">
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h3 class="font-display text-2xl font-bold">Historical Ledger</h3>
+      <span class="text-xs font-semibold text-muted mt-1 block">Backtested performance data across last 15 days</span>
+    </div>
+    <button class="pill-btn hover:!bg-white/20" onclick="window.print()">Export Report &darr;</button>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-left border-collapse">
+      <thead>
+        <tr class="border-b border-white/10">
+          <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">Date</th>
+          <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">Close</th>
+          <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">RSI</th>
+          <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">MACD</th>
+          <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">SMA 50</th>
+          <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">Daily Signal</th>
+        </tr>
+      </thead>
+      <tbody id="histTable" class="text-sm font-medium">
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+  Chart.defaults.color = '#94A3B8';
+  Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+  const gridColor = 'rgba(255,255,255,0.03)';
+  const tBg = 'rgba(15, 23, 42, 0.95)';
+  const tB = 'rgba(255,255,255,0.1)';
+  const d = {{ chart_data | tojson | safe }};
+  const n = d.labels.length;
+  // Price & BB 
+  const ctxPrice = document.getElementById('priceChart').getContext('2d');
+  const gradP = ctxPrice.createLinearGradient(0, 0, 0, 350);
+  gradP.addColorStop(0, 'rgba(0, 229, 255, 0.25)');
+  gradP.addColorStop(1, 'rgba(0, 229, 255, 0)');
+  new Chart(ctxPrice, {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        {
+          label: 'Close Price', data: d.prices,
+          borderColor: '#00E5FF', backgroundColor: gradP,
+          borderWidth: 3, fill: true, tension: 0.35, pointRadius: 0,
+          pointHoverRadius: 6, pointHoverBackgroundColor: '#00E5FF',
+          pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2
+        },
+        {
+          label: 'Upper Band', data: d.bb_upper,
+          borderColor: 'rgba(255,255,255,0.15)', borderDash: [6, 6],
+          borderWidth: 1.5, pointRadius: 0, fill: false
+        },
+        {
+          label: 'Lower Band', data: d.bb_lower,
+          borderColor: 'rgba(255,255,255,0.15)', borderDash: [6, 6],
+          borderWidth: 1.5, pointRadius: 0, fill: '-1',
+          backgroundColor: 'rgba(255,255,255,0.02)'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 12, titleFont: { size: 14, family: 'Outfit' }, bodyFont: { size: 13 }, cornerRadius: 10 }
+      },
+      scales: {
+        x: { display: false },
+        y: { grid: { color: gridColor }, ticks: { callback: v => '{{ symbol }}'+v, padding: 10 } }
+      }
+    }
+  });
+  // MACD Chart
+  const ctxM = document.getElementById('macdChart').getContext('2d');
+  new Chart(ctxM, {
+    type: 'bar',
+    data: {
+      labels: d.labels,
+      datasets: [{
+        label: 'MACD Hist', data: d.macd_hist,
+        backgroundColor: d.macd_hist.map(v => v >= 0 ? '#00E676' : '#FF1744'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 10, cornerRadius: 8 } },
+      scales: { x: { display: false }, y: { grid: { color: gridColor }, ticks: { padding: 10 } } }
+    }
+  });
+  // SMA Chart
+  const ctxS = document.getElementById('smaChart').getContext('2d');
+  new Chart(ctxS, {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        { label: 'SMA 20', data: d.sma_fast, borderColor: '#FFEA00', borderWidth: 2, pointRadius: 0, tension: 0.4 },
+        { label: 'SMA 50', data: d.sma_slow, borderColor: '#B388FF', borderWidth: 2, pointRadius: 0, tension: 0.4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12 } }, tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 10, cornerRadius: 8 } },
+      scales: { x: { display: false }, y: { grid: { color: gridColor }, ticks: { padding: 10 } } }
+    }
+  });
+  // Populate Table Logic
+  const tbody = document.getElementById('histTable');
+  for (let i = 0; i < Math.min(15, n); i++) {
+    const idx = n - 1 - i;
+    const rsi = (d.rsi[idx] || 0).toFixed(1);
+    const macd = (d.macd[idx] || 0).toFixed(3);
+    const sma = d.sma_slow[idx] ? '{{ symbol }}'+(d.sma_slow[idx]).toFixed(2) : '-';
+    let sigCls = 'bg-white/5 border border-white/10 text-muted'; let sigTxt = 'NEUTRAL';
+    if (rsi < 35 && macd > 0) { sigCls = 'bg-success/10 border border-success/20 text-success'; sigTxt = 'BULLISH'; }
+    else if (rsi > 65 && macd < 0) { sigCls = 'bg-danger/10 border border-danger/20 text-danger'; sigTxt = 'BEARISH'; }
+    const row = `<tr class="border-b border-navbar/5 hover:bg-white-[0.02] transition">
+      <td class="py-4 px-4 text-white">${d.labels[idx]}</td>
+      <td class="py-4 px-4 font-display font-bold text-[15px] text-cyan-400"><span class="dynamic-price" data-raw="${d.prices[idx]}">{{ symbol }}${d.prices[idx].toFixed(2)}</span></td>
+      <td class="py-4 px-4">${rsi} <span class="text-[10px] text-slate-500">pts</span></td>
+      <td class="py-4 px-4">${macd}</td>
+      <td class="py-4 px-4">${sma}</td>
+      <td class="py-4 px-4">
+        <span class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider ${sigCls}">${sigTxt}</span>
+      </td>
+    </tr>`;
+    tbody.innerHTML += row;
+  }
+  // --- Dynamic Currency Exchange Toggle ---
+  let currentDisplay = '{{ base_currency }}';
+  const baseCurrency = '{{ base_currency }}';
+  const exchangeRate = 83.50; // Live static exchange rate approximation
+  window.toggleCurrency = function() {
+      currentDisplay = currentDisplay === 'USD' ? 'INR' : 'USD';
+      document.getElementById('currToggle').innerText = currentDisplay === 'USD' ? 'Switch to INR' : 'Switch to USD';
+      const sym = currentDisplay === 'INR' ? '₹' : '$';
+      document.querySelectorAll('.dynamic-price').forEach(el => {
+          let raw = parseFloat(el.getAttribute('data-raw'));
+          let finalVal = raw;
+          if (baseCurrency === 'USD' && currentDisplay === 'INR') {
+              finalVal = raw * exchangeRate;
+          } else if (baseCurrency === 'INR' && currentDisplay === 'USD') {
+              finalVal = raw / exchangeRate;
+          }
+          el.innerText = sym + finalVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      });
+  };
+</script>
+{% endblock %}
