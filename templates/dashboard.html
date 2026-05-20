@@ -1,138 +1,353 @@
 {% extends 'layout.html' %}
-{% block title %}{{ ticker }} Analysis | Pro Terminal{% endblock %}
+{% block title %}{{ quote['name'] if quote else ticker }} | Pro AI Terminal{% endblock %}
 {% block content %}
 {% set symbol = '₹' if base_currency == 'INR' else '$' %}
-<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 animate-fade-in-up">
+
+<style>
+  @keyframes flashGreen {
+    0% {
+      color: #00e676;
+      text-shadow: 0 0 15px rgba(0, 230, 118, 0.6);
+    }
+
+    100% {}
+  }
+
+  @keyframes flashRed {
+    0% {
+      color: #ff1744;
+      text-shadow: 0 0 15px rgba(255, 23, 68, 0.6);
+    }
+
+    100% {}
+  }
+
+  .animate-flash-green {
+    animation: flashGreen 1.2s ease-out;
+  }
+
+  .animate-flash-red {
+    animation: flashRed 1.2s ease-out;
+  }
+</style>
+
+<!-- Dashboard Top Section -->
+<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4 animate-fade-in-up">
   <div>
-    <div class="text-xs font-bold text-muted uppercase tracking-widest mb-2 flex items-center gap-2">
+    <div class="text-xs font-bold text-muted uppercase tracking-widest mb-2 flex flex-wrap items-center gap-2">
       <a href="/" class="hover:text-cyan-400 transition">Markets</a>
       <span>/</span>
       <span class="text-white">{{ ticker }}</span>
-      <button onclick="toggleCurrency()" id="currToggle" class="ml-4 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold text-slate-300 hover:text-white hover:bg-white/10 transition">
+      <span class="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 rounded text-[10px] font-bold uppercase">{{
+        quote['exchange'] if quote else 'Equity' }}</span>
+      <button onclick="toggleCurrency()" id="currToggle"
+        class="ml-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold text-slate-300 hover:text-white hover:bg-white/10 transition">
         {% if base_currency == 'USD' %}Switch to INR{% else %}Switch to USD{% endif %}
       </button>
     </div>
-    <h1 class="text-5xl lg:text-6xl font-display font-extrabold tracking-tight mb-1">{{ ticker }}</h1>
-    <p class="text-sm text-slate-400 font-medium">Live AI Processing & Technical Intelligence</p>
+
+    <div class="flex items-center gap-3">
+      <h1
+        class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-extrabold tracking-tight mb-1 text-white">
+        {{ quote['name'] if quote else ticker }}
+      </h1>
+      <span
+        class="px-3 py-1 bg-white/5 border border-white/10 text-slate-300 rounded-lg text-sm font-bold uppercase tracking-wider shrink-0">{{
+        ticker }}</span>
+    </div>
+    <p class="text-sm text-slate-400 font-medium mt-1">Live Technical Analysis & Real-Time Price Processing</p>
   </div>
-  <div class="mt-6 lg:mt-0 relative group">
-    <div
-      class="absolute -inset-1 bg-gradient-to-r from-{{ 'success' if verdict.action == 'Buy' or verdict.action == 'Strong Buy' else ('danger' if 'Sell' in verdict.action else 'warning') }} to-blue-600 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-500">
-    </div>
-    <div
-      class="relative bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-[2rem] px-8 py-6 text-center min-w-[240px]">
-      <div class="text-[10px] font-bold tracking-[0.2em] text-muted uppercase mb-2">System Verdict</div>
-      <div
-        class="font-display text-4xl font-extrabold mb-1 {% if 'Buy' in verdict.action %}text-success{% elif 'Sell' in verdict.action %}text-danger{% else %}text-warning{% endif %} drop-shadow-[0_0_15px_currentColor]">
-        {{ verdict.action }}
-      </div>
-      <div class="text-xs font-semibold text-slate-300">Risk Assessment: <span class="text-white">{{ verdict.risk
-          }}</span></div>
-    </div>
-  </div>
-</div>
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8 animate-fade-in-up stagger-1">
-  <div class="glass-panel p-6">
-    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">Last Traded Price</span>
-    <div class="font-display text-3xl font-bold mb-2"><span class="dynamic-price" data-raw="{{ latest['Close'] }}">{{ symbol }}{{ "%.2f"|format(latest['Close']) }}</span></div>
-    <div
-      class="flex items-center gap-1.5 text-sm font-semibold {% if (latest['Close'] - prev_close) >= 0 %}text-success{% else %}text-danger{% endif %}">
-      {% if (latest['Close'] - prev_close) >= 0 %}
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-        <polyline points="18 15 12 9 6 15"></polyline>
-      </svg> +
-      {% else %}
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-        <polyline points="6 9 12 15 18 9"></polyline>
-      </svg>
-      {% endif %}
-      {{ "%.2f"|format(latest['Close'] - prev_close) }} ({{ "%.2f"|format((((latest['Close'] - prev_close)/(prev_close or 1.0))*100)|abs) }}%)
-    </div>
-  </div>
-  <div class="glass-panel p-6">
-    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">24H Range (H/L)</span>
-    <div class="font-display text-3xl font-bold mb-2"><span class="dynamic-price" data-raw="{{ latest['High'] }}">{{ symbol }}{{ "%.2f"|format(latest['High']) }}</span></div>
-    <div class="text-sm font-semibold text-slate-400">
-      Low: <span class="dynamic-price" data-raw="{{ latest['Low'] }}">{{ symbol }}{{ "%.2f"|format(latest['Low']) }}</span>
-    </div>
-  </div>
-  <div class="glass-panel p-6">
-    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">Momentum (RSI 14)</span>
-    <div class="font-display text-3xl font-bold mb-3">{{ "%.1f"|format(latest['RSI']) }}</div>
-    <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-      <div class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full"
-        style="width: {{ latest['RSI']|round|int }}%"></div>
-    </div>
-  </div>
-  <div class="glass-panel p-6">
-    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-4">AI Confidence Score</span>
-    <div
-      class="font-display text-3xl font-bold mb-2 {% if verdict.score >= 0 %}text-success{% else %}text-danger{% endif %}">
-      {{ verdict.score|abs }} / 5
-    </div>
-    <div class="text-sm font-semibold text-slate-400">
-      Computed from {{ df|length }} points
-    </div>
-  </div>
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 animate-fade-in-up stagger-2">
-  <div class="glass-panel lg:col-span-2 p-6 lg:p-8 flex flex-col">
-    <div class="flex justify-between items-start mb-6 w-full">
-      <div>
-        <h3 class="font-display text-2xl font-bold m-0">Price Action & Volatility</h3>
-        <span class="text-xs font-semibold text-muted mt-1 block">Close Price + Bollinger Bands (20, 2)</span>
-      </div>
-      <div class="pill-btn !px-4 !py-1.5 !text-[11px] !border-cyan-500/30 !text-cyan-400">Live WebGL</div>
-    </div>
-    <div class="relative w-full flex-grow min-h-[350px]">
-      <canvas id="priceChart"></canvas>
-    </div>
-  </div>
-  <div class="glass-panel p-6 lg:p-8 bg-gradient-to-b from-slate-900/60 to-slate-950/80 flex flex-col">
-    <h3 class="font-display text-xl font-bold mb-6">Diagnostic Breakdown</h3>
-    <div class="flex flex-col gap-3 flex-grow">
-      {% for reason in verdict.reason.split('\n') %}
-      <div class="flex gap-4 p-4 rounded-2xl bg-black/20 border border-white/5 items-start">
-        <div class="text-cyan-400 mt-0.5 shrink-0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-          </svg>
-        </div>
-        <div class="text-sm font-medium text-slate-200 leading-relaxed">{{ reason.replace('- ','') }}</div>
-      </div>
+
+  <!-- Timeframe Selector -->
+  <div class="flex items-center gap-2 self-start lg:self-center">
+    <span class="text-xs font-bold text-muted uppercase tracking-wider mr-2">Timeframe:</span>
+    <div class="flex bg-slate-900/60 p-1 rounded-xl border border-white/5">
+      {% for p in ['1mo', '3mo', '6mo', '1y', '5y'] %}
+      <a href="/analyze?ticker={{ ticker }}&period={{ p }}" data-period="{{ p }}" class="timeframe-btn px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-wider 
+         {% if period == p %}
+           bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md shadow-cyan-500/20 active-timeframe
+         {% else %}
+           text-muted hover:text-white
+         {% endif %}">
+        {{ p | replace('mo', 'M') | replace('y', 'Y') }}
+      </a>
       {% endfor %}
     </div>
   </div>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 animate-fade-in-up stagger-3">
-  <div class="glass-panel p-6 lg:p-8">
-    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-1">Trend Reversal</span>
-    <h3 class="font-display text-xl font-bold mb-6">MACD Histogram</h3>
-    <div class="relative w-full h-[220px]">
-      <canvas id="macdChart"></canvas>
+
+<!-- Primary Stats Row -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8 animate-fade-in-up stagger-1">
+  <div class="glass-panel p-6 flex flex-col justify-between">
+    <div>
+      <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Last Traded Price</span>
+      <div class="font-display text-3xl sm:text-4xl font-extrabold mb-1">
+        <span class="dynamic-price live-price text-white" data-raw="{{ quote['price'] if quote else latest['Close'] }}">
+          {{ symbol }}{{ "%.2f"|format(quote['price'] if (quote and quote['price'] is not none) else latest['Close']) }}
+        </span>
+      </div>
+    </div>
+    <div
+      class="price-change-wrapper flex items-center gap-1.5 text-sm font-bold {% if (quote['change'] if quote else (latest['Close'] - prev_close)) >= 0 %}text-success{% else %}text-danger{% endif %}">
+      <span class="price-change-icon shrink-0">
+        {% if (quote['change'] if quote else (latest['Close'] - prev_close)) >= 0 %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+        {% else %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+        {% endif %}
+      </span>
+      <span class="price-change-value">
+        {% set change_val = quote['change'] if quote else (latest['Close'] - prev_close) %}
+        {{ "+" if change_val >= 0 else "" }}{{ "%.2f"|format(change_val) }}
+      </span>
+      <span class="price-change-percent">
+        {% set change_pct = quote['change_percent'] if quote else (((latest['Close'] - prev_close)/(prev_close or
+        1.0))*100) %}
+        ({{ "+" if change_pct >= 0 else "" }}{{ "%.2f"|format(change_pct) }}%)
+      </span>
     </div>
   </div>
-  <div class="glass-panel p-6 lg:p-8">
-    <span class="text-[11px] font-bold text-muted uppercase tracking-widest block mb-1">Moving Average Cross</span>
-    <h3 class="font-display text-xl font-bold mb-6">SMA 20 vs SMA 50</h3>
-    <div class="relative w-full h-[220px]">
-      <canvas id="smaChart"></canvas>
+
+  <div class="glass-panel p-6 flex flex-col justify-between">
+    <div>
+      <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Day High/Low</span>
+      <div class="font-display text-2xl font-bold mb-1 text-white">
+        <span class="dynamic-price" data-raw-high data-raw="{{ quote['high'] if quote else latest['High'] }}">
+          {{ symbol }}{{ "%.2f"|format(quote['high'] if (quote and quote['high'] is not none) else latest['High']) }}
+        </span>
+      </div>
+    </div>
+    <div class="text-xs font-semibold text-slate-400">
+      Low:
+      <span class="dynamic-price" data-raw-low data-raw="{{ quote['low'] if quote else latest['Low'] }}">
+        {{ symbol }}{{ "%.2f"|format(quote['low'] if (quote and quote['low'] is not none) else latest['Low']) }}
+      </span>
+    </div>
+  </div>
+
+  <div class="glass-panel p-6 flex flex-col justify-between">
+    <div>
+      <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Momentum (RSI 14)</span>
+      <div class="font-display text-3xl font-extrabold mb-2 text-white" id="rsiVal">{{ "%.1f"|format(latest['RSI']) }}
+      </div>
+    </div>
+    <div class="w-full">
+      <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full transition-all duration-500"
+          id="rsiBar" style="width: {{ latest['RSI']|round|int }}%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-panel p-6 flex flex-col justify-between">
+    <div>
+      <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">AI Confidence Score</span>
+      <div id="aiConfidenceScore" class="font-display text-3xl font-extrabold mb-1 text-success">
+        {{ verdict.confidence }} / 5
+      </div>
+    </div>
+    <div class="text-xs font-semibold text-slate-400">
+      Computed from {{ df|length }} records
     </div>
   </div>
 </div>
-<div class="glass-panel p-6 lg:p-8 mb-10 animate-fade-in-up stagger-4 overflow-hidden">
-  <div class="flex justify-between items-center mb-6">
+
+<!-- Main Section Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 animate-fade-in-up stagger-2">
+  <!-- Chart Panel -->
+  <div class="glass-panel lg:col-span-2 p-6 lg:p-8 flex flex-col">
+    <div class="flex justify-between items-start mb-6 w-full gap-2">
+      <div>
+        <h3 class="font-display text-2xl font-bold m-0 text-white">Price Action & Indicators</h3>
+        <span class="text-xs font-semibold text-muted mt-1 block">Candlestick close + Bollinger Bands + SMA (20,
+          50)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_8px_rgba(0,230,118,0.5)]"></span>
+        <span class="text-[10px] font-bold text-success uppercase tracking-wider whitespace-nowrap">Live Stream</span>
+      </div>
+    </div>
+    <div class="relative w-full flex-grow min-h-[300px] sm:min-h-[350px] lg:min-h-[400px]">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Sidebar Rating & Key Stats -->
+  <div class="flex flex-col gap-6">
+    <!-- Technical Verdict Gauge -->
+    <div class="glass-panel p-6 lg:p-8 bg-gradient-to-b from-slate-900/60 to-slate-950/80">
+      <h3 class="font-display text-lg font-bold mb-4 text-white">Technical Rating</h3>
+      <div class="relative bg-slate-950/60 border border-white/5 rounded-2xl p-6 text-center">
+        <div class="text-[10px] font-bold tracking-[0.2em] text-muted uppercase mb-1">Consensus Rating</div>
+        <div id="verdictAction"
+          class="font-display text-3xl font-extrabold mb-3 {% if 'Buy' in verdict.action %}text-success{% elif 'Sell' in verdict.action %}text-danger{% else %}text-warning{% endif %} drop-shadow-[0_0_15px_currentColor]">
+          {{ verdict.action }}
+        </div>
+        <div class="text-xs font-semibold text-slate-300 mb-6">Risk Factor: <span class="text-white" id="verdictRisk">{{
+            verdict.risk
+            }}</span></div>
+
+        <!-- Sliding gauge slider -->
+        <div class="relative w-full">
+          <div class="flex justify-between text-[9px] font-bold text-muted uppercase tracking-wider mb-2">
+            <span>Sell</span>
+            <span>Hold</span>
+            <span>Buy</span>
+          </div>
+          <div class="relative h-2 w-full bg-gradient-to-r from-danger via-warning to-success rounded-full">
+            <div id="consensusMarker"
+              class="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3 h-5 bg-white rounded-full border border-slate-950 shadow-[0_0_8px_#fff] transition-all duration-1000"
+              style="left: {{ ((verdict.score + 5) / 10) * 100 }}%">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Statistics -->
+    <div class="glass-panel p-6 lg:p-8">
+      <h3 class="font-display text-lg font-bold mb-4 text-white">Key Statistics</h3>
+      <div class="grid grid-cols-2 gap-y-4 gap-x-6 text-sm font-medium">
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">Open</span>
+          <span class="dynamic-price font-bold text-white text-sm sm:text-base" data-raw-open
+            data-raw="{{ quote['open'] if (quote and quote['open'] is not none) else latest['Open'] }}">
+            {{ symbol }}{{ "%.2f"|format(quote['open'] if (quote and quote['open'] is not none) else latest['Open']) }}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">Prev Close</span>
+          <span class="dynamic-price font-bold text-white text-sm sm:text-base" data-raw="{{ prev_close }}">
+            {{ symbol }}{{ "%.2f"|format(prev_close) }}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">Day High</span>
+          <span class="dynamic-price font-bold text-white text-sm sm:text-base" data-raw-high
+            data-raw="{{ quote['high'] if (quote and quote['high'] is not none) else latest['High'] }}">
+            {{ symbol }}{{ "%.2f"|format(quote['high'] if (quote and quote['high'] is not none) else latest['High']) }}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">Day Low</span>
+          <span class="dynamic-price font-bold text-white text-sm sm:text-base" data-raw-low
+            data-raw="{{ quote['low'] if (quote and quote['low'] is not none) else latest['Low'] }}">
+            {{ symbol }}{{ "%.2f"|format(quote['low'] if (quote and quote['low'] is not none) else latest['Low']) }}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">52W High</span>
+          <span class="dynamic-price font-bold text-white text-sm sm:text-base"
+            data-raw="{{ quote['fifty_two_high'] if (quote and quote['fifty_two_high'] is not none) else '' }}">
+            {% if quote and quote['fifty_two_high'] is not none %}
+            {{ symbol }}{{ "%.2f"|format(quote['fifty_two_high']) }}
+            {% else %}
+            N/A
+            {% endif %}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">52W Low</span>
+          <span class="dynamic-price font-bold text-white text-sm sm:text-base"
+            data-raw="{{ quote['fifty_two_low'] if (quote and quote['fifty_two_low'] is not none) else '' }}">
+            {% if quote and quote['fifty_two_low'] is not none %}
+            {{ symbol }}{{ "%.2f"|format(quote['fifty_two_low']) }}
+            {% else %}
+            N/A
+            {% endif %}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">P/E Ratio</span>
+          <span class="font-bold text-white text-sm sm:text-base">
+            {{ quote['pe_ratio'] if quote else 'N/A' }}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2">
+          <span class="text-xs text-muted block">Volume</span>
+          <span class="font-bold text-white text-sm sm:text-base" id="statVolume">
+            {{ "{:,}".format(quote['volume']) if (quote and quote['volume'] is not none) else
+            "{:,}".format(latest['Volume']|int) }}
+          </span>
+        </div>
+        <div class="border-b border-white/5 pb-2 col-span-2">
+          <span class="text-xs text-muted block">Market Cap</span>
+          <span class="font-bold text-white text-sm sm:text-base">
+            {% if quote and quote['market_cap'] is not none %}
+            {% if base_currency == 'INR' or (quote and quote['currency'] == 'INR') %}
+            ₹{{ "%.2f"|format(quote['market_cap'] / 10000000) }} Cr
+            {% else %}
+            ${{ "%.2f"|format(quote['market_cap'] / 1000000000) }} B
+            {% endif %}
+            {% else %}
+            N/A
+            {% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary Charts Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in-up stagger-3">
+  <!-- MACD Chart -->
+  <div class="glass-panel p-6 lg:p-8">
+    <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Momentum Divergence</span>
+    <h3 class="font-display text-xl font-bold mb-4 text-white">MACD Line & Histogram</h3>
+    <div class="relative w-full h-[200px] sm:h-[240px]">
+      <canvas id="macdChart"></canvas>
+    </div>
+  </div>
+
+  <!-- RSI Chart -->
+  <div class="glass-panel p-6 lg:p-8">
+    <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Relative Strength Index</span>
+    <h3 class="font-display text-xl font-bold mb-4 text-white">RSI (14) Momentum Trend</h3>
+    <div class="relative w-full h-[200px] sm:h-[240px]">
+      <canvas id="rsiChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Diagnostics Breakdown -->
+<div class="glass-panel p-6 lg:p-8 mb-8 animate-fade-in-up">
+  <h3 class="font-display text-2xl font-bold mb-6 text-white">Diagnostic Insights</h3>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="diagnosticsContainer">
+    {% for reason in verdict.reason.split('\n') %}
+    {% if reason.strip() %}
+    <div class="flex gap-4 p-4 rounded-2xl bg-black/20 border border-white/5 items-start">
+      <div class="text-cyan-400 mt-0.5 shrink-0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+      <div class="text-sm font-medium text-slate-200 leading-relaxed">{{ reason.replace('- ','') }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Historical Data Ledger -->
+<div class="glass-panel p-6 lg:p-8 mb-10 animate-fade-in-up overflow-hidden">
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
     <div>
-      <h3 class="font-display text-2xl font-bold">Historical Ledger</h3>
+      <h3 class="font-display text-2xl font-bold text-white">Historical Ledger</h3>
       <span class="text-xs font-semibold text-muted mt-1 block">Backtested performance data across last 15 days</span>
     </div>
-    <button class="pill-btn hover:!bg-white/20" onclick="window.print()">Export Report &darr;</button>
+    <button class="pill-btn hover:!bg-white/20 self-start sm:self-auto" onclick="window.print()">Export Report
+      &darr;</button>
   </div>
   <div class="overflow-x-auto">
     <table class="w-full text-left border-collapse">
       <thead>
-        <tr class="border-b border-white/10">
+        <tr class="border-b border-white/10 whitespace-nowrap">
           <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">Date</th>
           <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">Close</th>
           <th class="py-4 px-4 text-xs font-bold text-muted uppercase tracking-wider">RSI</th>
@@ -146,6 +361,7 @@
     </table>
   </div>
 </div>
+
 <script>
   Chart.defaults.color = '#94A3B8';
   Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
@@ -154,12 +370,14 @@
   const tB = 'rgba(255,255,255,0.1)';
   const d = {{ chart_data | tojson | safe }};
   const n = d.labels.length;
-  // Price & BB 
+
+  // Price, SMA and Bollinger Bands Combined Chart
   const ctxPrice = document.getElementById('priceChart').getContext('2d');
   const gradP = ctxPrice.createLinearGradient(0, 0, 0, 350);
-  gradP.addColorStop(0, 'rgba(0, 229, 255, 0.25)');
+  gradP.addColorStop(0, 'rgba(0, 229, 255, 0.2)');
   gradP.addColorStop(1, 'rgba(0, 229, 255, 0)');
-  new Chart(ctxPrice, {
+
+  window.priceChartInstance = new Chart(ctxPrice, {
     type: 'line',
     data: {
       labels: d.labels,
@@ -167,20 +385,30 @@
         {
           label: 'Close Price', data: d.prices,
           borderColor: '#00E5FF', backgroundColor: gradP,
-          borderWidth: 3, fill: true, tension: 0.35, pointRadius: 0,
+          borderWidth: 3, fill: true, tension: 0.3, pointRadius: 0,
           pointHoverRadius: 6, pointHoverBackgroundColor: '#00E5FF',
           pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2
         },
         {
+          label: 'SMA 20', data: d.sma_fast,
+          borderColor: '#FFEA00', borderWidth: 1.5, pointRadius: 0,
+          tension: 0.35, fill: false
+        },
+        {
+          label: 'SMA 50', data: d.sma_slow,
+          borderColor: '#B388FF', borderWidth: 1.5, pointRadius: 0,
+          tension: 0.35, fill: false
+        },
+        {
           label: 'Upper Band', data: d.bb_upper,
-          borderColor: 'rgba(255,255,255,0.15)', borderDash: [6, 6],
-          borderWidth: 1.5, pointRadius: 0, fill: false
+          borderColor: 'rgba(255,255,255,0.12)', borderDash: [5, 5],
+          borderWidth: 1.2, pointRadius: 0, fill: false
         },
         {
           label: 'Lower Band', data: d.bb_lower,
-          borderColor: 'rgba(255,255,255,0.15)', borderDash: [6, 6],
-          borderWidth: 1.5, pointRadius: 0, fill: '-1',
-          backgroundColor: 'rgba(255,255,255,0.02)'
+          borderColor: 'rgba(255,255,255,0.12)', borderDash: [5, 5],
+          borderWidth: 1.2, pointRadius: 0, fill: '-1',
+          backgroundColor: 'rgba(255,255,255,0.015)'
         }
       ]
     },
@@ -188,63 +416,124 @@
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'top', labels: { boxWidth: 12, padding: 15 } },
         tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 12, titleFont: { size: 14, family: 'Outfit' }, bodyFont: { size: 13 }, cornerRadius: 10 }
       },
       scales: {
         x: { display: false },
-        y: { grid: { color: gridColor }, ticks: { callback: v => '{{ symbol }}'+v, padding: 10 } }
+        y: { grid: { color: gridColor }, ticks: { callback: v => '{{ symbol }}' + v.toLocaleString(undefined, { minimumFractionDigits: 0 }), padding: 10 } }
       }
     }
   });
-  // MACD Chart
+
+  // MACD Chart (Histogram, MACD Line, Signal Line)
   const ctxM = document.getElementById('macdChart').getContext('2d');
-  new Chart(ctxM, {
-    type: 'bar',
-    data: {
-      labels: d.labels,
-      datasets: [{
-        label: 'MACD Hist', data: d.macd_hist,
-        backgroundColor: d.macd_hist.map(v => v >= 0 ? '#00E676' : '#FF1744'),
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 10, cornerRadius: 8 } },
-      scales: { x: { display: false }, y: { grid: { color: gridColor }, ticks: { padding: 10 } } }
-    }
-  });
-  // SMA Chart
-  const ctxS = document.getElementById('smaChart').getContext('2d');
-  new Chart(ctxS, {
-    type: 'line',
+  window.macdChartInstance = new Chart(ctxM, {
     data: {
       labels: d.labels,
       datasets: [
-        { label: 'SMA 20', data: d.sma_fast, borderColor: '#FFEA00', borderWidth: 2, pointRadius: 0, tension: 0.4 },
-        { label: 'SMA 50', data: d.sma_slow, borderColor: '#B388FF', borderWidth: 2, pointRadius: 0, tension: 0.4 }
+        {
+          label: 'MACD', data: d.macd,
+          borderColor: '#00E5FF', borderWidth: 1.8, pointRadius: 0,
+          type: 'line', fill: false, tension: 0.3
+        },
+        {
+          label: 'Signal', data: d.macd_signal,
+          borderColor: '#FFEA00', borderWidth: 1.8, pointRadius: 0,
+          type: 'line', fill: false, tension: 0.3
+        },
+        {
+          label: 'Histogram', data: d.macd_hist,
+          backgroundColor: d.macd_hist.map(v => v >= 0 ? 'rgba(0, 230, 118, 0.45)' : 'rgba(255, 23, 68, 0.45)'),
+          borderWidth: 0, borderRadius: 2, type: 'bar'
+        }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top', labels: { boxWidth: 12 } }, tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 10, cornerRadius: 8 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { boxWidth: 12 } },
+        tooltip: { backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 10, cornerRadius: 8 }
+      },
       scales: { x: { display: false }, y: { grid: { color: gridColor }, ticks: { padding: 10 } } }
     }
   });
+
+  // RSI Chart
+  const ctxRsi = document.getElementById('rsiChart').getContext('2d');
+  window.rsiChartInstance = new Chart(ctxRsi, {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        {
+          label: 'RSI (14)', data: d.rsi,
+          borderColor: '#B388FF', borderWidth: 2, pointRadius: 0,
+          tension: 0.3, fill: false
+        },
+        {
+          label: 'Overbought (70)',
+          data: new Array(d.labels.length).fill(70),
+          borderColor: 'rgba(239, 68, 68, 0.45)',
+          borderWidth: 1.5,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: false,
+          tension: 0
+        },
+        {
+          label: 'Oversold (30)',
+          data: new Array(d.labels.length).fill(30),
+          borderColor: 'rgba(34, 197, 94, 0.45)',
+          borderWidth: 1.5,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: false,
+          tension: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: tBg, borderColor: tB, borderWidth: 1, padding: 10, cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              if (context.datasetIndex !== 0) return null;
+              return `RSI: ${context.parsed.y.toFixed(1)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { display: false },
+        y: {
+          min: 0, max: 100,
+          grid: { color: gridColor },
+          ticks: { stepSize: 20, padding: 10 }
+        }
+      }
+    }
+  });
+
   // Populate Table Logic
   const tbody = document.getElementById('histTable');
   for (let i = 0; i < Math.min(15, n); i++) {
     const idx = n - 1 - i;
     const rsi = (d.rsi[idx] || 0).toFixed(1);
     const macd = (d.macd[idx] || 0).toFixed(3);
-    const sma = d.sma_slow[idx] ? '{{ symbol }}'+(d.sma_slow[idx]).toFixed(2) : '-';
+    const sma = d.sma_slow[idx] ? '{{ symbol }}' + (d.sma_slow[idx]).toFixed(2) : '-';
     let sigCls = 'bg-white/5 border border-white/10 text-muted'; let sigTxt = 'NEUTRAL';
     if (rsi < 35 && macd > 0) { sigCls = 'bg-success/10 border border-success/20 text-success'; sigTxt = 'BULLISH'; }
     else if (rsi > 65 && macd < 0) { sigCls = 'bg-danger/10 border border-danger/20 text-danger'; sigTxt = 'BEARISH'; }
-    const row = `<tr class="border-b border-navbar/5 hover:bg-white-[0.02] transition">
+    const row = `<tr class="border-b border-white/5 hover:bg-white/5 transition whitespace-nowrap">
       <td class="py-4 px-4 text-white">${d.labels[idx]}</td>
-      <td class="py-4 px-4 font-display font-bold text-[15px] text-cyan-400"><span class="dynamic-price" data-raw="${d.prices[idx]}">{{ symbol }}${d.prices[idx].toFixed(2)}</span></td>
+      <td class="py-4 px-4 font-display font-bold text-[15px] text-cyan-400">
+        <span class="dynamic-price" data-raw="${d.prices[idx]}">{{ symbol }}${d.prices[idx].toFixed(2)}</span>
+      </td>
       <td class="py-4 px-4">${rsi} <span class="text-[10px] text-slate-500">pts</span></td>
       <td class="py-4 px-4">${macd}</td>
       <td class="py-4 px-4">${sma}</td>
@@ -254,24 +543,312 @@
     </tr>`;
     tbody.innerHTML += row;
   }
+
   // --- Dynamic Currency Exchange Toggle ---
   let currentDisplay = '{{ base_currency }}';
   const baseCurrency = '{{ base_currency }}';
   const exchangeRate = 83.50; // Live static exchange rate approximation
-  window.toggleCurrency = function() {
-      currentDisplay = currentDisplay === 'USD' ? 'INR' : 'USD';
-      document.getElementById('currToggle').innerText = currentDisplay === 'USD' ? 'Switch to INR' : 'Switch to USD';
-      const sym = currentDisplay === 'INR' ? '₹' : '$';
-      document.querySelectorAll('.dynamic-price').forEach(el => {
-          let raw = parseFloat(el.getAttribute('data-raw'));
-          let finalVal = raw;
-          if (baseCurrency === 'USD' && currentDisplay === 'INR') {
-              finalVal = raw * exchangeRate;
-          } else if (baseCurrency === 'INR' && currentDisplay === 'USD') {
-              finalVal = raw / exchangeRate;
-          }
-          el.innerText = sym + finalVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-      });
+
+  function formatValue(val, currency) {
+    const sym = currency === 'INR' ? '₹' : '$';
+    return sym + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  window.renderPrices = function () {
+    document.querySelectorAll('.dynamic-price').forEach(el => {
+      let raw = parseFloat(el.getAttribute('data-raw'));
+      if (isNaN(raw)) return;
+      let finalVal = raw;
+      if (baseCurrency === 'USD' && currentDisplay === 'INR') {
+        finalVal = raw * exchangeRate;
+      } else if (baseCurrency === 'INR' && currentDisplay === 'USD') {
+        finalVal = raw / exchangeRate;
+      }
+      el.innerText = formatValue(finalVal, currentDisplay);
+    });
   };
+
+  window.toggleCurrency = function () {
+    currentDisplay = currentDisplay === 'USD' ? 'INR' : 'USD';
+    document.getElementById('currToggle').innerText = currentDisplay === 'USD' ? 'Switch to INR' : 'Switch to USD';
+    window.renderPrices();
+  };
+
+  // Run initial formatting
+  window.renderPrices();
+
+  // --- Live Quote AJAX Poller ---
+  const tickerSymbol = '{{ ticker }}';
+  let prevPrice = parseFloat('{{ quote["price"] if (quote and quote["price"] is not none) else latest["Close"] }}');
+
+  function pollLiveQuote() {
+    fetch(`/api/quote/${tickerSymbol}`)
+      .then(res => {
+        if (!res.ok) throw new Error("API quote fetch failed");
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.price !== null) {
+          const currentPrice = data.price;
+          const prevClose = data.prev_close || prevPrice;
+          const change = data.change;
+          const changePercent = data.change_percent;
+
+          // Target price display elements
+          const priceEl = document.querySelector('.live-price');
+          const changeValEl = document.querySelector('.price-change-value');
+          const changePctEl = document.querySelector('.price-change-percent');
+          const iconContainer = document.querySelector('.price-change-icon');
+          const changeWrapper = document.querySelector('.price-change-wrapper');
+
+          if (priceEl) {
+            priceEl.setAttribute('data-raw', currentPrice);
+
+            // Trigger flashing class
+            priceEl.classList.remove('animate-flash-green', 'animate-flash-red');
+            void priceEl.offsetWidth; // trigger reflow
+            if (currentPrice > prevPrice) {
+              priceEl.classList.add('animate-flash-green');
+            } else if (currentPrice < prevPrice) {
+              priceEl.classList.add('animate-flash-red');
+            }
+            prevPrice = currentPrice;
+          }
+
+          // Update change value and percent
+          if (changeValEl) {
+            changeValEl.innerText = (change >= 0 ? '+' : '') + change.toFixed(2);
+          }
+          if (changePctEl) {
+            changePctEl.innerText = '(' + (change >= 0 ? '+' : '') + changePercent.toFixed(2) + '%)';
+          }
+
+          // Update status colors and arrow
+          if (changeWrapper) {
+            if (change >= 0) {
+              changeWrapper.classList.remove('text-danger');
+              changeWrapper.classList.add('text-success');
+              if (iconContainer) {
+                iconContainer.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+              }
+            } else {
+              changeWrapper.classList.remove('text-success');
+              changeWrapper.classList.add('text-danger');
+              if (iconContainer) {
+                iconContainer.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+              }
+            }
+          }
+
+          // Update Key Stats high, low, open, volume
+          const openEl = document.querySelector('[data-raw-open]');
+          const highEl = document.querySelectorAll('[data-raw-high]');
+          const lowEl = document.querySelectorAll('[data-raw-low]');
+          const volEl = document.getElementById('statVolume');
+
+          if (openEl && data.open !== null) openEl.setAttribute('data-raw', data.open);
+
+          highEl.forEach(el => {
+            if (data.high !== null) el.setAttribute('data-raw', data.high);
+          });
+          lowEl.forEach(el => {
+            if (data.low !== null) el.setAttribute('data-raw', data.low);
+          });
+
+          if (volEl && data.volume !== null) {
+            volEl.innerText = data.volume.toLocaleString();
+          }
+
+          // Redraw all formatted currencies
+          window.renderPrices();
+
+          // Update chart's last data point with the new live price
+          if (window.priceChartInstance && window.priceChartInstance.data.datasets[0].data.length > 0) {
+            const idx = window.priceChartInstance.data.datasets[0].data.length - 1;
+            window.priceChartInstance.data.datasets[0].data[idx] = currentPrice;
+            window.priceChartInstance.update('none'); // Update without default animation to keep it smooth
+          }
+        }
+      })
+      .catch(err => console.error("Error polling quote:", err));
+  }
+
+  // Timeframe dynamic AJAX fetch & DOM updates
+  function updateHistoricalTable(df) {
+    const tbody = document.getElementById('histTable');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    // Show only last 15 rows for backtested performance ledger
+    const lastRows = df.slice(-15).reverse();
+    lastRows.forEach(d => {
+      const rsi = d.RSI !== null ? d.RSI.toFixed(1) : 'N/A';
+      const macd = d.MACD !== null ? d.MACD.toFixed(2) : 'N/A';
+      const sma = d.SMA_Slow !== null ? '{{ symbol }}' + d.SMA_Slow.toFixed(2) : 'N/A';
+
+      let sigCls = 'bg-white/5 border border-white/10 text-muted';
+      let sigTxt = 'NEUTRAL';
+      if (d.RSI !== null && d.MACD !== null) {
+        if (d.RSI < 35 && d.MACD > 0) {
+          sigCls = 'bg-success/10 border border-success/20 text-success';
+          sigTxt = 'BULLISH';
+        } else if (d.RSI > 65 && d.MACD < 0) {
+          sigCls = 'bg-danger/10 border border-danger/20 text-danger';
+          sigTxt = 'BEARISH';
+        }
+      }
+
+      const row = `<tr class="border-b border-white/5 hover:bg-white/5 transition whitespace-nowrap">
+        <td class="py-4 px-4 text-white">${d.Date}</td>
+        <td class="py-4 px-4 font-display font-bold text-[15px] text-cyan-400">
+          <span class="dynamic-price" data-raw="${d.Close}">{{ symbol }}${d.Close.toFixed(2)}</span>
+        </td>
+        <td class="py-4 px-4">${rsi} <span class="text-[10px] text-slate-500">pts</span></td>
+        <td class="py-4 px-4">${macd}</td>
+        <td class="py-4 px-4">${sma}</td>
+        <td class="py-4 px-4">
+          <span class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider ${sigCls}">${sigTxt}</span>
+        </td>
+      </tr>`;
+      tbody.insertAdjacentHTML('beforeend', row);
+    });
+    window.renderPrices();
+  }
+
+  function updateVerdictGauge(verdict) {
+    const verdictActionEl = document.getElementById('verdictAction');
+    const verdictRiskEl = document.getElementById('verdictRisk');
+    const consensusMarkerEl = document.getElementById('consensusMarker');
+    const aiConfidenceScoreEl = document.getElementById('aiConfidenceScore');
+
+    if (verdictActionEl) {
+      verdictActionEl.innerText = verdict.action;
+      verdictActionEl.className = 'font-display text-3xl font-extrabold mb-3 drop-shadow-[0_0_15px_currentColor] ' +
+        (verdict.action.includes('Buy') ? 'text-success' : verdict.action.includes('Sell') ? 'text-danger' : 'text-warning');
+    }
+
+    if (verdictRiskEl) {
+      verdictRiskEl.innerText = verdict.risk;
+    }
+
+    if (consensusMarkerEl) {
+      const percentage = ((verdict.score + 5) / 10) * 100;
+      consensusMarkerEl.style.left = `calc(${percentage}% - 6px)`;
+    }
+
+    if (aiConfidenceScoreEl) {
+      aiConfidenceScoreEl.innerText = `${verdict.confidence} / 5`;
+      aiConfidenceScoreEl.className = 'font-display text-3xl font-extrabold mb-1 text-success';
+    }
+  }
+
+  function updateDiagnostics(verdict) {
+    const container = document.getElementById('diagnosticsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const reasons = verdict.reason.split('\n');
+    reasons.forEach(reason => {
+      const cleanReason = reason.replace(/^- /, '').trim();
+      if (!cleanReason) return;
+
+      const div = `
+        <div class="flex gap-4 p-4 rounded-2xl bg-black/20 border border-white/5 items-start">
+          <div class="text-cyan-400 mt-0.5 shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+          <div class="text-sm font-medium text-slate-200 leading-relaxed">${cleanReason}</div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', div);
+    });
+  }
+
+  function updateRsiPanel(latest) {
+    const rsiValEl = document.getElementById('rsiVal');
+    const rsiBarEl = document.getElementById('rsiBar');
+    if (rsiValEl) rsiValEl.innerText = latest.RSI !== null ? latest.RSI.toFixed(1) : 'N/A';
+    if (rsiBarEl && latest.RSI !== null) {
+      rsiBarEl.style.width = `${Math.round(latest.RSI)}%`;
+    }
+  }
+
+  document.querySelectorAll('.timeframe-btn').forEach(btn => {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const period = this.getAttribute('data-period');
+      const url = this.getAttribute('href');
+
+      document.querySelectorAll('.timeframe-btn').forEach(b => {
+        b.classList.remove('bg-gradient-to-r', 'from-cyan-500', 'to-blue-500', 'text-white', 'shadow-md', 'shadow-cyan-500/20', 'active-timeframe');
+        b.classList.add('text-muted', 'hover:text-white');
+      });
+      this.classList.remove('text-muted', 'hover:text-white');
+      this.classList.add('bg-gradient-to-r', 'from-cyan-500', 'to-blue-500', 'text-white', 'shadow-md', 'shadow-cyan-500/20', 'active-timeframe');
+
+      const canvases = document.querySelectorAll('canvas');
+      canvases.forEach(c => c.style.opacity = '0.35');
+
+      fetch(url + '&json=true', {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error("Timeframe dynamic fetch failed");
+          return res.json();
+        })
+        .then(data => {
+          canvases.forEach(c => {
+            c.style.transition = 'opacity 0.25s ease-out';
+            c.style.opacity = '1';
+          });
+
+          window.history.pushState({ ticker: data.ticker, period: data.period }, '', url);
+
+          if (window.priceChartInstance) {
+            window.priceChartInstance.data.labels = data.chart_data.labels;
+            window.priceChartInstance.data.datasets[0].data = data.chart_data.prices;
+            window.priceChartInstance.data.datasets[1].data = data.chart_data.sma_fast;
+            window.priceChartInstance.data.datasets[2].data = data.chart_data.sma_slow;
+            window.priceChartInstance.data.datasets[3].data = data.chart_data.bb_upper;
+            window.priceChartInstance.data.datasets[4].data = data.chart_data.bb_lower;
+            window.priceChartInstance.update();
+          }
+
+          if (window.macdChartInstance) {
+            window.macdChartInstance.data.labels = data.chart_data.labels;
+            window.macdChartInstance.data.datasets[0].data = data.chart_data.macd;
+            window.macdChartInstance.data.datasets[1].data = data.chart_data.macd_signal;
+            window.macdChartInstance.data.datasets[2].data = data.chart_data.macd_hist;
+            window.macdChartInstance.data.datasets[2].backgroundColor = data.chart_data.macd_hist.map(v => v >= 0 ? 'rgba(0, 230, 118, 0.45)' : 'rgba(255, 23, 68, 0.45)');
+            window.macdChartInstance.update();
+          }
+
+          if (window.rsiChartInstance) {
+            window.rsiChartInstance.data.labels = data.chart_data.labels;
+            window.rsiChartInstance.data.datasets[0].data = data.chart_data.rsi;
+            window.rsiChartInstance.data.datasets[1].data = new Array(data.chart_data.labels.length).fill(70);
+            window.rsiChartInstance.data.datasets[2].data = new Array(data.chart_data.labels.length).fill(30);
+            window.rsiChartInstance.update();
+          }
+
+          updateHistoricalTable(data.df);
+          updateVerdictGauge(data.verdict);
+          updateDiagnostics(data.verdict);
+          updateRsiPanel(data.latest);
+        })
+        .catch(err => {
+          canvases.forEach(c => c.style.opacity = '1');
+          console.error("Error updating timeframe:", err);
+        });
+    });
+  });
+
+  // Start polling every 8 seconds
+  setInterval(pollLiveQuote, 8000);
 </script>
 {% endblock %}

@@ -30,7 +30,8 @@ class AnalysisEngine:
                 "action": "NEUTRAL",
                 "reason": "Insufficient data to form a professional opinion.",
                 "risk": "Unknown",
-                "score": 0
+                "score": 0,
+                "confidence": 0
             }
         price = latest_data['Close']
         sma_slow = latest_data['SMA_Slow']
@@ -82,9 +83,36 @@ class AnalysisEngine:
         else:
             action = "HOLD"
             risk = "Medium"
+
+        # Calculate a highly accurate, dynamic confidence score (1.0 to 5.0) based on mathematical indicator signals
+        # 1. Trend strength (price deviation from 50-day moving average, capped at 15%)
+        trend_dist = abs(price - sma_slow) / (sma_slow if sma_slow > 0 else 1.0)
+        trend_factor = min(trend_dist / 0.15, 1.0)
+        
+        # 2. RSI extreme strength (deviation from 50 neutral point, capped at 30 points)
+        rsi_dist = abs(rsi - 50.0)
+        rsi_factor = min(rsi_dist / 30.0, 1.0)
+        
+        # 3. MACD histogram separation (compared to a baseline of 2% of the price)
+        macd_hist = latest_data.get('MACD_Hist', 0.0)
+        macd_factor = min(abs(macd_hist) / (price * 0.02 if price > 0 else 1.0), 1.0)
+        
+        # 4. Bollinger Band pressure (price deviation from mid point relative to band width)
+        bb_width = bb_upper - bb_lower if (bb_upper - bb_lower) > 0 else 1.0
+        bb_mid = (bb_upper + bb_lower) / 2.0
+        bb_factor = min(abs(price - bb_mid) / (bb_width / 2.0 if bb_width > 0 else 1.0), 1.0)
+        
+        # Average the 4 signal strength factors (0.0 to 1.0)
+        avg_factor = (trend_factor + rsi_factor + macd_factor + bb_factor) / 4.0
+        
+        # Map average factor (0 to 1) to a 1.0-5.0 scale with a baseline of 1.5
+        confidence = round(1.5 + (avg_factor * 3.5), 1)
+        confidence = max(1.0, min(5.0, confidence))
+
         return {
             "action": action,
             "reason": "\n".join([f"- {r}" for r in reasons]),
             "risk": risk,
-            "score": score
+            "score": score,
+            "confidence": confidence
         }
