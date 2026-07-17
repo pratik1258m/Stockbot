@@ -98,11 +98,15 @@
           <p class="text-[10px] font-bold tracking-widest text-cyan-400 uppercase mt-0.5 m-0 block">AI Vision Pro</p>
         </div>
       </a>
-      <div class="flex flex-col items-end">
+      <div class="flex items-center gap-4">
         <div class="flex items-center gap-2 text-xs font-bold text-success tracking-wide uppercase">
-          <span class="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_8px_theme('colors.success')]"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_8px_#10B981]"></span>
           Live Feed Active
         </div>
+        <button id="perf-toggle" onclick="toggleParticles()" class="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer">
+          <span id="perf-dot" class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+          <span>FX: ON</span>
+        </button>
       </div>
     </div>
   </nav>
@@ -111,76 +115,133 @@
   </main>
   <footer class="border-t border-white/10 py-8 mt-auto z-10 bg-slate-950/30 backdrop-blur-md flex justify-center">
     <div class="tracking-wide text-center text-xs text-slate-400 font-medium">
-      &copy; 2026 <strong>StockBot AI Pro</strong> &nbsp;|&nbsp; Architected and Developed by <strong class="text-white">Pratik Mishra</strong>.
+      &copy; 2026 <strong>StockBot AI Pro</strong> &nbsp;|&nbsp; Developed by <strong class="text-white">Pratik Mishra</strong> &nbsp;|&nbsp; <span class="text-cyan-500">Final Year Project</span>
     </div>
   </footer>
   <script>
     const canvas = document.getElementById('three-canvas');
     const scene = new THREE.Scene();
-    // Add atmospheric fog
-    scene.fog = new THREE.FogExp2(0x020617, 0.0015);
+    scene.fog = new THREE.FogExp2(0x020617, 0.002);
+    
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: false }); // antialias: false for performance
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    // Particle Geometry (Data Nodes)
-    const particleCount = 1000;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // limit pixel ratio for performance
+    
+    // Performance Optimized Particle Count (350 instead of 1000)
+    const particleCount = 350;
     const geometry = new THREE.BufferGeometry();
     const posArray = new Float32Array(particleCount * 3);
-    // Randomly place particles in a wide 3D space
     for(let i = 0; i < particleCount * 3; i++) {
-        posArray[i] = (Math.random() - 0.5) * 800; // Spread x, y, z
+        posArray[i] = (Math.random() - 0.5) * 800;
     }
     geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    // Make particles look like glowing cyan/blue data points
-    // Use a custom texture for perfect circles or just raw points for speed
+    
     const material = new THREE.PointsMaterial({
-        size: 2,
+        size: 2.2,
         color: 0x00E5FF,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.7,
         blending: THREE.AdditiveBlending
     });
     const particlesMesh = new THREE.Points(geometry, material);
     scene.add(particlesMesh);
-    // Subtle Grid/Lines to look like a financial matrix
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.03 });
-    const gridHelper = new THREE.GridHelper(1000, 40, null, 0xffffff);
-    gridHelper.position.y = -150;
-    scene.add(gridHelper);
+    
     camera.position.z = 200;
-    // Mouse Interaction
-    let mouseX = 0;
-    let mouseY = 0;
-    let targetX = 0;
-    let targetY = 0;
-    const windowHalfX = window.innerWidth / 2;
-    const windowHalfY = window.innerHeight / 2;
+    
+    // Mouse Parallax Interaction (Throttled)
+    let mouseX = 0, mouseY = 0;
+    let targetX = 0, targetY = 0;
+    let windowHalfX = window.innerWidth / 2;
+    let windowHalfY = window.innerHeight / 2;
+    
+    let lastMouseMove = 0;
     document.addEventListener('mousemove', (event) => {
+        const now = performance.now();
+        if (now - lastMouseMove < 30) return; // limit to ~33fps
+        lastMouseMove = now;
         mouseX = (event.clientX - windowHalfX);
         mouseY = (event.clientY - windowHalfY);
     });
+    
     const clock = new THREE.Clock();
+    let fxEnabled = localStorage.getItem('stockbot_fx') !== 'false';
+    let animationId = null;
+    let isTabFocused = true;
+    
     // Animation Loop
     function animate() {
-        requestAnimationFrame(animate);
+        if (!fxEnabled || !isTabFocused) return;
+        animationId = requestAnimationFrame(animate);
         const elapsedTime = clock.getElapsedTime();
-        // Slow rotation of the entire particle mesh
-        particlesMesh.rotation.y = elapsedTime * 0.05;
-        particlesMesh.rotation.x = elapsedTime * 0.02;
-        // Gentle undulating wave effect on Y axis
-        gridHelper.position.y = -150 + Math.sin(elapsedTime) * 10;
-        // Easing mouse movement into camera movement for parallax
-        targetX = mouseX * 0.05;
-        targetY = mouseY * 0.05;
-        camera.position.x += (targetX - camera.position.x) * 0.02;
-        camera.position.y += (-targetY - camera.position.y) * 0.02;
+        
+        // Slow rotation of particles
+        particlesMesh.rotation.y = elapsedTime * 0.03;
+        particlesMesh.rotation.x = elapsedTime * 0.01;
+        
+        // Easing mouse movement into camera coordinates
+        targetX = mouseX * 0.04;
+        targetY = mouseY * 0.04;
+        camera.position.x += (targetX - camera.position.x) * 0.03;
+        camera.position.y += (-targetY - camera.position.y) * 0.03;
         camera.lookAt(scene.position);
+        
         renderer.render(scene, camera);
     }
-    animate();
-    // Responsive Canvas
+    
+    // FX toggle control functions
+    function applyFXState() {
+        const btn = document.getElementById('perf-toggle');
+        const dot = document.getElementById('perf-dot');
+        if (fxEnabled && isTabFocused) {
+            canvas.style.display = 'block';
+            if (btn) btn.querySelector('span:last-child').innerText = 'FX: ON';
+            if (dot) {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-cyan-400';
+            }
+            if (!animationId) {
+                clock.getDelta(); // reset clock time delta
+                animate();
+            }
+        } else {
+            if (!fxEnabled) {
+                canvas.style.display = 'none';
+                if (btn) btn.querySelector('span:last-child').innerText = 'FX: OFF';
+                if (dot) {
+                    dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
+                }
+            }
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+    }
+    
+    window.toggleParticles = function() {
+        fxEnabled = !fxEnabled;
+        localStorage.setItem('stockbot_fx', fxEnabled);
+        applyFXState();
+    };
+    
+    // Listen for tab focus/blur to pause/resume WebGL rendering loop
+    window.addEventListener('blur', () => {
+        isTabFocused = false;
+        applyFXState();
+    });
+    
+    window.addEventListener('focus', () => {
+        isTabFocused = true;
+        applyFXState();
+    });
+    
+    // Initialize FX state on load
+    applyFXState();
+    
+    // Responsive Canvas resize handling
     window.addEventListener('resize', () => {
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
