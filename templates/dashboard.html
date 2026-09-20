@@ -128,7 +128,7 @@
     <div class="w-full">
       <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
         <div class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full transition-all duration-500"
-             id="rsiBar" style="width: {{ latest['RSI']|round|int }}%"></div>
+             id="rsiBar" {{ ('style="width: ' ~ latest['RSI']|round|int ~ '%;"')|safe }}></div>
       </div>
       <div class="flex justify-between text-[9px] font-bold text-muted mt-1">
         <span>0</span><span class="text-success">30</span>
@@ -137,17 +137,27 @@
     </div>
   </div>
 
-  <!-- AI Confidence -->
+  <!-- Prediction Accuracy -->
   <div class="glass-panel p-6 flex flex-col justify-between">
     <div>
-      <span class="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">AI Confidence Score</span>
-      <div id="aiConfidenceScore" class="font-display text-3xl font-extrabold mb-1 text-success">
-        {{ verdict.confidence }} / 5
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-[10px] font-bold text-muted uppercase tracking-widest block">Prediction Accuracy</span>
+        <a href="#actualVsExpectedSection" class="text-[10px] font-bold text-accent hover:underline flex items-center gap-0.5">
+          Verify &darr;
+        </a>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <div id="aiAccuracyScore" class="font-display text-3xl font-extrabold mb-1 text-accent">
+          {% if prediction and prediction.accuracy_pct is not none %}{{ "%.1f"|format(prediction.accuracy_pct) }}%{% else %}N/A{% endif %}
+        </div>
+        <span class="text-[11px] font-medium text-slate-400" id="aiMapeSub">
+          {% if prediction and prediction.mape is not none %}(MAPE: {{ "%.2f"|format(prediction.mape) }}%){% endif %}
+        </span>
       </div>
     </div>
-    <div class="text-xs font-semibold text-slate-400">
-      Computed from {{ chart_data.labels|length }} records
-      {% if prediction.r2 is not none %} · R²={{ "%.2f"|format(prediction.r2) }}{% endif %}
+    <div class="text-xs font-semibold text-slate-400 flex items-center justify-between">
+      <span>AI Confidence: <span class="text-white">{{ verdict.confidence }} / 5</span></span>
+      <span class="text-[11px] text-muted">10-Day Expected vs Real</span>
     </div>
   </div>
 </div>
@@ -168,7 +178,7 @@
       </div>
       <div class="flex items-center gap-2">
         <span id="liveIndicator" class="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_8px_rgba(0,230,118,0.5)]"></span>
-        <span class="text-[10px] font-bold text-success uppercase tracking-wider whitespace-nowrap">Live Stream</span>
+        <span class="text-[10px] font-bold text-success uppercase tracking-wider whitespace-nowrap">Auto-Refresh (10s)</span>
       </div>
     </div>
     <div class="relative w-full flex-grow min-h-[300px] sm:min-h-[350px] lg:min-h-[400px]">
@@ -200,7 +210,7 @@
           <div class="relative h-2 w-full bg-gradient-to-r from-danger via-warning to-success rounded-full">
             <div id="consensusMarker"
                  class="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3 h-5 bg-white rounded-full border border-slate-950 shadow-[0_0_8px_#fff] transition-all duration-1000"
-                 style="left: {{ gauge_pct }}%">
+                 {{ ('style="left: ' ~ gauge_pct ~ '%;"')|safe }}>
             </div>
           </div>
         </div>
@@ -308,6 +318,175 @@
     <div class="relative w-full h-[200px] sm:h-[240px]">
       <canvas id="rsiChart"></canvas>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     AI PREDICTION & BACKTEST VERIFICATION (ACTUAL VS EXPECTED)
+     ═══════════════════════════════════════════════════════════ -->
+<div id="actualVsExpectedSection" class="glass-panel p-6 lg:p-8 mb-8 animate-fade-in-up">
+  <!-- Header with title, model badge and tabs -->
+  <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-4 border-b border-white/5">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-[10px] font-bold text-accent uppercase tracking-widest px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20">
+          Model Verification
+        </span>
+        <span class="text-xs text-slate-400 font-medium hidden sm:inline" id="modelNameBadge">
+          {{ prediction.model_name if (prediction and prediction.model_name) else 'Adaptive Multi-Horizon Trend Model' }}
+        </span>
+      </div>
+      <h3 class="font-display text-2xl font-bold text-white m-0">Predicted vs Actual (Expected vs Real)</h3>
+      <span class="text-xs text-muted mt-1 block">
+        Empirical 10-day walk-forward backtest verification against real historical closing prices + 10-day future volatility bounds
+      </span>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5">
+      <button id="tabBacktestBtn" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white transition-all shadow-sm" onclick="switchPredTab('backtest')">
+        Actual vs Expected (Backtest)
+      </button>
+      <button id="tabForecastBtn" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted hover:text-white transition-all" onclick="switchPredTab('forecast')">
+        Future 10-Day Projection
+      </button>
+    </div>
+  </div>
+
+  <!-- Metric Badges Row -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+    <div class="p-3.5 rounded-xl bg-black/25 border border-white/5">
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Forecast Accuracy</span>
+      <div class="text-lg font-bold text-accent font-display" id="metricAccuracy">
+        {% if prediction and prediction.accuracy_pct is not none %}{{ "%.1f"|format(prediction.accuracy_pct) }}%{% else %}N/A{% endif %}
+      </div>
+      <span class="text-[10px] text-slate-400">100 − MAPE Score</span>
+    </div>
+    <div class="p-3.5 rounded-xl bg-black/25 border border-white/5">
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Mean Abs Error (MAE)</span>
+      <div class="text-lg font-bold text-white font-display dynamic-price" id="metricMae"
+           data-raw="{{ prediction.mae if (prediction and prediction.mae is not none) else '' }}">
+        {% if prediction and prediction.mae is not none %}{{ symbol }}{{ "%.2f"|format(prediction.mae) }}{% else %}N/A{% endif %}
+      </div>
+      <span class="text-[10px] text-slate-400">Avg price deviation</span>
+    </div>
+    <div class="p-3.5 rounded-xl bg-black/25 border border-white/5">
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">MAPE (Avg % Error)</span>
+      <div class="text-lg font-bold text-white font-display" id="metricMape">
+        {% if prediction and prediction.mape is not none %}{{ "%.2f"|format(prediction.mape) }}%{% else %}N/A{% endif %}
+      </div>
+      <span class="text-[10px] text-slate-400">Mean percentage error</span>
+    </div>
+    <div class="p-3.5 rounded-xl bg-black/25 border border-white/5">
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">RMSE Volatility</span>
+      <div class="text-lg font-bold text-white font-display dynamic-price" id="metricRmse"
+           data-raw="{{ prediction.rmse if (prediction and prediction.rmse is not none) else '' }}">
+        {% if prediction and prediction.rmse is not none %}{{ symbol }}{{ "%.2f"|format(prediction.rmse) }}{% else %}N/A{% endif %}
+      </div>
+      <span class="text-[10px] text-slate-400">Root-mean-square dev</span>
+    </div>
+    <div class="p-3.5 rounded-xl bg-black/25 border border-white/5 col-span-2 sm:col-span-1">
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Directional Accuracy</span>
+      <div class="text-lg font-bold text-success font-display" id="metricDirAcc">
+        {% if prediction and prediction.dir_accuracy is not none %}{{ "%.1f"|format(prediction.dir_accuracy) }}%{% else %}N/A{% endif %}
+      </div>
+      <span class="text-[10px] text-slate-400" id="metricDirTrend">
+        {% if prediction and prediction.dir_match %}
+        <span class="text-success font-bold">Trend Direction Matched</span>
+        {% else %}
+        <span>Day-by-day trend</span>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+  <!-- TAB 1: Backtest Verification Table (Expected vs Actual) -->
+  <div id="panelBacktest" class="block overflow-x-auto rounded-xl border border-white/5">
+    <table class="w-full text-left border-collapse text-xs">
+      <thead>
+        <tr class="bg-black/40 text-muted uppercase tracking-wider text-[10px] border-b border-white/5 font-semibold">
+          <th class="p-3">Session Date</th>
+          <th class="p-3">Predicted (Expected)</th>
+          <th class="p-3">Actual Close</th>
+          <th class="p-3">Difference (Delta)</th>
+          <th class="p-3">Abs Error %</th>
+          <th class="p-3">Direction Match</th>
+        </tr>
+      </thead>
+      <tbody id="backtestTableBody" class="divide-y divide-white/5 text-slate-300">
+        {% if prediction and prediction.backtest %}
+          {% for row in prediction.backtest %}
+          <tr class="hover:bg-white/[0.02] transition-colors">
+            <td class="p-3 font-mono font-medium text-slate-400">{{ row.date }}</td>
+            <td class="p-3 font-semibold text-white dynamic-price" data-raw="{{ row.expected }}">
+              {{ symbol }}{{ "%.2f"|format(row.expected) }}
+            </td>
+            <td class="p-3 font-bold text-cyan-400 dynamic-price" data-raw="{{ row.actual }}">
+              {{ symbol }}{{ "%.2f"|format(row.actual) }}
+            </td>
+            <td class="p-3 font-mono {% if row.diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ "+" if row.diff > 0 else "" }}{{ "%.2f"|format(row.diff) }}
+            </td>
+            <td class="p-3 font-mono text-slate-300">
+              {{ "%.2f"|format(row.pct_error) }}%
+            </td>
+            <td class="p-3">
+              {% if row.dir_match %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/10 text-success border border-success/20">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Matched
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-white/5">
+                Diverged
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="6" class="p-4 text-center text-muted">Insufficient historical data to compute backtest verification.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TAB 2: Future 10-Day Projections with Upper/Lower Volatility Bounds -->
+  <div id="panelForecast" class="hidden overflow-x-auto rounded-xl border border-white/5">
+    <table class="w-full text-left border-collapse text-xs">
+      <thead>
+        <tr class="bg-black/40 text-muted uppercase tracking-wider text-[10px] border-b border-white/5 font-semibold">
+          <th class="p-3">Forecast Date</th>
+          <th class="p-3">Expected Target</th>
+          <th class="p-3">Bullish Upper Bound (90%)</th>
+          <th class="p-3">Bearish Lower Support (90%)</th>
+          <th class="p-3">Projected Change %</th>
+        </tr>
+      </thead>
+      <tbody id="forecastTableBody" class="divide-y divide-white/5 text-slate-300">
+        {% if prediction and prediction.forecast %}
+          {% for row in prediction.forecast %}
+          <tr class="hover:bg-white/[0.02] transition-colors">
+            <td class="p-3 font-mono font-medium text-slate-400">{{ row.date }}</td>
+            <td class="p-3 font-bold text-accent dynamic-price" data-raw="{{ row.expected }}">
+              {{ symbol }}{{ "%.2f"|format(row.expected) }}
+            </td>
+            <td class="p-3 font-semibold text-success dynamic-price" data-raw="{{ row.upper }}">
+              {{ symbol }}{{ "%.2f"|format(row.upper) }}
+            </td>
+            <td class="p-3 font-semibold text-danger dynamic-price" data-raw="{{ row.lower }}">
+              {{ symbol }}{{ "%.2f"|format(row.lower) }}
+            </td>
+            <td class="p-3 font-mono {% if row.pct_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ "+" if row.pct_change > 0 else "" }}{{ "%.2f"|format(row.pct_change) }}%
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="5" class="p-4 text-center text-muted">No forecast data available.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -428,17 +607,52 @@
   window.renderPrices();   // initial render
 
   // ── Build combined historical + prediction labels/data ───────────────────
+  // ── Switch Prediction Tabs (Backtest vs Forecast) ───────────────────────
+  window.switchPredTab = function(tab) {
+    const pBack = document.getElementById('panelBacktest');
+    const pFore = document.getElementById('panelForecast');
+    const btnB = document.getElementById('tabBacktestBtn');
+    const btnF = document.getElementById('tabForecastBtn');
+    if (!pBack || !pFore || !btnB || !btnF) return;
+
+    if (tab === 'backtest') {
+      pBack.classList.remove('hidden');
+      pBack.classList.add('block');
+      pFore.classList.remove('block');
+      pFore.classList.add('hidden');
+      btnB.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white transition-all shadow-sm';
+      btnF.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted hover:text-white transition-all';
+    } else {
+      pFore.classList.remove('hidden');
+      pFore.classList.add('block');
+      pBack.classList.remove('block');
+      pBack.classList.add('hidden');
+      btnF.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white transition-all shadow-sm';
+      btnB.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted hover:text-white transition-all';
+    }
+  };
+
+  // ── Build combined historical + prediction labels/data ───────────────────
   const histLabels  = d.labels;
   const predLabels  = d.pred_labels  || [];
   const predPrices  = d.pred_prices  || [];
+  const predUpper   = d.pred_upper   || [];
+  const predLower   = d.pred_lower   || [];
   const allLabels   = [...histLabels, ...predLabels];
 
   // Historical price padded with nulls for the prediction range
   const histPriceLine  = [...d.prices,    ...Array(predLabels.length).fill(null)];
-  // Prediction line: null for all historical points, then actual predictions
-  const predPriceLine  = [...Array(histLabels.length - 1).fill(null),
-                            d.prices[d.prices.length - 1],   // connect from last historical
+  // Prediction line: null for all historical points, then actual predictions smoothly anchored
+  const lastCloseVal   = (d.prices && d.prices.length > 0) ? d.prices[d.prices.length - 1] : null;
+  const predPriceLine  = [...Array(Math.max(0, histLabels.length - 1)).fill(null),
+                            lastCloseVal,
                             ...predPrices];
+  const predUpperLine  = [...Array(Math.max(0, histLabels.length - 1)).fill(null),
+                            lastCloseVal,
+                            ...predUpper];
+  const predLowerLine  = [...Array(Math.max(0, histLabels.length - 1)).fill(null),
+                            lastCloseVal,
+                            ...predLower];
 
   // ── Price + SMA + BB + Prediction chart ──────────────────────────────────
   const ctxP  = document.getElementById('priceChart').getContext('2d');
@@ -479,13 +693,35 @@
           backgroundColor: 'rgba(255,255,255,0.015)'
         },
         {
-          label: 'ML Projection',
+          label: 'Prediction',
           data: predPriceLine,
           borderColor: '#FF9800',
-          borderWidth: 2,
+          borderWidth: 2.5,
           borderDash: [6, 4],
           pointRadius: predPriceLine.map((v, i) => (i >= histLabels.length ? 3 : 0)),
           pointBackgroundColor: '#FF9800',
+          fill: false,
+          tension: 0.2,
+          spanGaps: false
+        },
+        {
+          label: 'Bullish Target (90%)',
+          data: predUpperLine,
+          borderColor: 'rgba(0,230,118,0.4)',
+          borderWidth: 1.2,
+          borderDash: [3, 3],
+          pointRadius: 0,
+          fill: false,
+          tension: 0.2,
+          spanGaps: false
+        },
+        {
+          label: 'Bearish Support (90%)',
+          data: predLowerLine,
+          borderColor: 'rgba(255,23,68,0.4)',
+          borderWidth: 1.2,
+          borderDash: [3, 3],
+          pointRadius: 0,
           fill: false,
           tension: 0.2,
           spanGaps: false
@@ -633,6 +869,59 @@
 
   buildHistTable(d.labels, d.prices, d.rsi, d.macd, d.atr, d.sma_slow);
 
+  // ── Build Prediction Verification & Forecast Tables ───────────────────────
+  function buildPredictionTables(pred) {
+    if (!pred) return;
+    const bBody = document.getElementById('backtestTableBody');
+    if (bBody && pred.backtest) {
+      if (pred.backtest.length === 0) {
+        bBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-muted">Insufficient historical data to compute backtest verification.</td></tr>';
+      } else {
+        bBody.innerHTML = pred.backtest.map(row => {
+          const diffVal = parseFloat(row.diff);
+          const diffStr = (diffVal > 0 ? '+' : '') + diffVal.toFixed(2);
+          const diffClass = diffVal >= 0 ? 'text-success' : 'text-danger';
+          const matchBadge = row.dir_match
+            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/10 text-success border border-success/20">
+                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                 Matched
+               </span>`
+            : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-white/5">
+                 Diverged
+               </span>`;
+          return `<tr class="hover:bg-white/[0.02] transition-colors">
+            <td class="p-3 font-mono font-medium text-slate-400">${row.date}</td>
+            <td class="p-3 font-semibold text-white dynamic-price" data-raw="${row.expected}">${fmtPrice(row.expected, currentDisplay)}</td>
+            <td class="p-3 font-bold text-cyan-400 dynamic-price" data-raw="${row.actual}">${fmtPrice(row.actual, currentDisplay)}</td>
+            <td class="p-3 font-mono ${diffClass}">${diffStr}</td>
+            <td class="p-3 font-mono text-slate-300">${parseFloat(row.pct_error).toFixed(2)}%</td>
+            <td class="p-3">${matchBadge}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    const fBody = document.getElementById('forecastTableBody');
+    if (fBody && pred.forecast) {
+      if (pred.forecast.length === 0) {
+        fBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-muted">No forecast data available.</td></tr>';
+      } else {
+        fBody.innerHTML = pred.forecast.map(row => {
+          const chgVal = parseFloat(row.pct_change);
+          const chgStr = (chgVal > 0 ? '+' : '') + chgVal.toFixed(2) + '%';
+          const chgClass = chgVal >= 0 ? 'text-success' : 'text-danger';
+          return `<tr class="hover:bg-white/[0.02] transition-colors">
+            <td class="p-3 font-mono font-medium text-slate-400">${row.date}</td>
+            <td class="p-3 font-bold text-accent dynamic-price" data-raw="${row.expected}">${fmtPrice(row.expected, currentDisplay)}</td>
+            <td class="p-3 font-semibold text-success dynamic-price" data-raw="${row.upper}">${fmtPrice(row.upper, currentDisplay)}</td>
+            <td class="p-3 font-semibold text-danger dynamic-price" data-raw="${row.lower}">${fmtPrice(row.lower, currentDisplay)}</td>
+            <td class="p-3 font-mono ${chgClass}">${chgStr}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  }
+
   // ── News feed ─────────────────────────────────────────────────────────────
   function renderNews(articles) {
     const container = document.getElementById('newsContainer');
@@ -758,12 +1047,13 @@
           window.history.pushState({}, '', url);
 
           const cd = data.chart_data;
-          const pLab  = cd.pred_labels || [];
-          const pPri  = cd.pred_prices || [];
+          const pLab   = cd.pred_labels || [];
+          const pPri   = cd.pred_prices || [];
           const allLab = [...cd.labels, ...pLab];
           const hLine  = [...cd.prices, ...Array(pLab.length).fill(null)];
-          const prLine = [...Array(cd.labels.length - 1).fill(null),
-                          cd.prices[cd.prices.length - 1], ...pPri];
+          const lastClose = (cd.prices && cd.prices.length > 0) ? cd.prices[cd.prices.length - 1] : null;
+          const prLine = [...Array(Math.max(0, cd.labels.length - 1)).fill(null),
+                          lastClose, ...pPri];
 
           if (window.priceChartInstance) {
             const ds = window.priceChartInstance.data.datasets;
@@ -775,7 +1065,59 @@
             ds[4].data = [...cd.bb_lower,  ...Array(pLab.length).fill(null)];
             ds[5].data = prLine;
             ds[5].pointRadius = prLine.map((v,i) => i >= cd.labels.length ? 3 : 0);
+
+            const pUp  = cd.pred_upper || [];
+            const pLow = cd.pred_lower || [];
+            if (ds[6]) {
+              ds[6].data = [...Array(Math.max(0, cd.labels.length - 1)).fill(null), lastClose, ...pUp];
+            }
+            if (ds[7]) {
+              ds[7].data = [...Array(Math.max(0, cd.labels.length - 1)).fill(null), lastClose, ...pLow];
+            }
             window.priceChartInstance.update();
+          }
+
+          if (data.prediction) {
+            const p = data.prediction;
+            const accEl = document.getElementById('aiAccuracyScore');
+            if (accEl && p.accuracy_pct != null) {
+              accEl.innerText = `${parseFloat(p.accuracy_pct).toFixed(1)}%`;
+            }
+            const mapeSub = document.getElementById('aiMapeSub');
+            if (mapeSub && p.mape != null) {
+              mapeSub.innerText = `(MAPE: ${parseFloat(p.mape).toFixed(2)}%)`;
+            }
+
+            const metAcc = document.getElementById('metricAccuracy');
+            if (metAcc && p.accuracy_pct != null) {
+              metAcc.innerText = `${parseFloat(p.accuracy_pct).toFixed(1)}%`;
+            }
+            const metMae = document.getElementById('metricMae');
+            if (metMae && p.mae != null) {
+              metMae.setAttribute('data-raw', p.mae);
+              metMae.innerText = fmtPrice(p.mae, currentDisplay);
+            }
+            const metMape = document.getElementById('metricMape');
+            if (metMape && p.mape != null) {
+              metMape.innerText = `${parseFloat(p.mape).toFixed(2)}%`;
+            }
+            const metRmse = document.getElementById('metricRmse');
+            if (metRmse && p.rmse != null) {
+              metRmse.setAttribute('data-raw', p.rmse);
+              metRmse.innerText = fmtPrice(p.rmse, currentDisplay);
+            }
+            const metDir = document.getElementById('metricDirAcc');
+            if (metDir && p.dir_accuracy != null) {
+              metDir.innerText = `${parseFloat(p.dir_accuracy).toFixed(1)}%`;
+            }
+            const metTrend = document.getElementById('metricDirTrend');
+            if (metTrend) {
+              metTrend.innerHTML = p.dir_match
+                ? '<span class="text-success font-bold">Trend Direction Matched</span>'
+                : '<span>Day-by-day trend</span>';
+            }
+
+            buildPredictionTables(p);
           }
 
           if (window.macdChartInstance) {
@@ -800,6 +1142,7 @@
           updateVerdictGauge(data.verdict);
           updateDiagnostics(data.verdict);
           updateRsiPanel(data.latest);
+          window.renderPrices();
         })
         .catch(err => {
           document.querySelectorAll('canvas').forEach(c => c.style.opacity = '1');
