@@ -23,6 +23,8 @@ class AnalysisEngine:
         avg_loss = loss.ewm(alpha=alpha, min_periods=INDICATOR_WINDOWS['RSI'], adjust=False).mean()
         rs = avg_gain / avg_loss.replace(0, np.nan)
         df['RSI'] = 100 - (100 / (1 + rs))
+        fallback_rsi = pd.Series(np.where(avg_loss == 0, 100.0, 0.0), index=df.index)
+        df['RSI'] = df['RSI'].fillna(fallback_rsi)
 
         ema_fast = df['Close'].ewm(span=INDICATOR_WINDOWS['MACD_FAST'], adjust=False).mean()
         ema_slow = df['Close'].ewm(span=INDICATOR_WINDOWS['MACD_SLOW'], adjust=False).mean()
@@ -32,16 +34,19 @@ class AnalysisEngine:
 
         bb_window = INDICATOR_WINDOWS['BB']
         df['BB_Mid'] = df['Close'].rolling(window=bb_window).mean()
-        df['BB_Std'] = df['Close'].rolling(window=bb_window).std()
+        df['BB_Std'] = df['Close'].rolling(window=bb_window).std().replace(0, 1e-6)
         df['BB_Upper'] = df['BB_Mid'] + (df['BB_Std'] * 2)
         df['BB_Lower'] = df['BB_Mid'] - (df['BB_Std'] * 2)
 
         atr_period = INDICATOR_WINDOWS['ATR']
-        high_low = df['High'] - df['Low']
-        high_pc = (df['High'] - df['Close'].shift()).abs()
-        low_pc = (df['Low'] - df['Close'].shift()).abs()
-        true_range = pd.concat([high_low, high_pc, low_pc], axis=1).max(axis=1)
-        df['ATR'] = true_range.ewm(alpha=1.0 / atr_period, min_periods=atr_period, adjust=False).mean()
+        if all(c in df.columns for c in ['High', 'Low', 'Close']):
+            high_low = df['High'] - df['Low']
+            high_pc = (df['High'] - df['Close'].shift()).abs()
+            low_pc = (df['Low'] - df['Close'].shift()).abs()
+            true_range = pd.concat([high_low, high_pc, low_pc], axis=1).max(axis=1)
+            df['ATR'] = true_range.ewm(alpha=1.0 / atr_period, min_periods=atr_period, adjust=False).mean()
+        else:
+            df['ATR'] = (df['Close'] * 0.02).ewm(alpha=1.0 / atr_period, min_periods=atr_period, adjust=False).mean()
 
         return df, df.iloc[-1]
 
@@ -268,7 +273,7 @@ class AnalysisEngine:
         mae = float(np.mean(np.abs(diffs)))
         rmse = float(np.sqrt(np.mean(diffs ** 2)))
         max_err = float(np.max(np.abs(diffs)))
-        accuracy_pct = round(max(50.0, min(99.9, 100.0 - mape)), 1)
+        accuracy_pct = round(max(0.0, min(100.0, 100.0 - mape)), 1)
 
         base_tr = float(train_series.iloc[-1])
         act_daily = np.diff(np.insert(actual_vals, 0, base_tr))

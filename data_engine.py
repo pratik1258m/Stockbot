@@ -21,7 +21,7 @@ class DataEngine:
         if cache_key in self._price_cache:
             cached_df, ts = self._price_cache[cache_key]
             if time.time() - ts < CACHE_TTL:
-                return cached_df, ticker
+                return cached_df.copy(), ticker
 
         candidates = [ticker]
         if '.' not in ticker:
@@ -39,7 +39,7 @@ class DataEngine:
 
                 if not history.empty:
                     self._price_cache[cache_key] = (history, time.time())
-                    return history, sym
+                    return history.copy(), sym
             except Exception:
                 continue
 

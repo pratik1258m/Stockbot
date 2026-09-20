@@ -137,27 +137,27 @@
     </div>
   </div>
 
-  <!-- Prediction Accuracy -->
+  <!-- Directional Accuracy -->
   <div class="glass-panel p-6 flex flex-col justify-between">
     <div>
       <div class="flex justify-between items-center mb-1">
-        <span class="text-[10px] font-bold text-muted uppercase tracking-widest block">Prediction Accuracy</span>
+        <span class="text-[10px] font-bold text-muted uppercase tracking-widest block">Directional Accuracy</span>
         <a href="#actualVsExpectedSection" class="text-[10px] font-bold text-accent hover:underline flex items-center gap-0.5">
           Verify &darr;
         </a>
       </div>
       <div class="flex items-baseline gap-2">
         <div id="aiAccuracyScore" class="font-display text-3xl font-extrabold mb-1 text-accent">
-          {% if prediction and prediction.accuracy_pct is not none %}{{ "%.1f"|format(prediction.accuracy_pct) }}%{% else %}N/A{% endif %}
+          {% if prediction and prediction.dir_accuracy is not none %}{{ "%.1f"|format(prediction.dir_accuracy) }}%{% else %}N/A{% endif %}
         </div>
         <span class="text-[11px] font-medium text-slate-400" id="aiMapeSub">
-          {% if prediction and prediction.mape is not none %}(MAPE: {{ "%.2f"|format(prediction.mape) }}%){% endif %}
+          {% if prediction and prediction.mape is not none %}(MAPE Error: {{ "%.2f"|format(prediction.mape) }}%){% endif %}
         </span>
       </div>
     </div>
     <div class="text-xs font-semibold text-slate-400 flex items-center justify-between">
       <span>AI Confidence: <span class="text-white">{{ verdict.confidence }} / 5</span></span>
-      <span class="text-[11px] text-muted">10-Day Expected vs Real</span>
+      <span class="text-[11px] text-muted">10-Day Trend Match</span>
     </div>
   </div>
 </div>
@@ -356,11 +356,11 @@
   <!-- Metric Badges Row -->
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
     <div class="p-3.5 rounded-xl bg-black/25 border border-white/5">
-      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Forecast Accuracy</span>
-      <div class="text-lg font-bold text-accent font-display" id="metricAccuracy">
-        {% if prediction and prediction.accuracy_pct is not none %}{{ "%.1f"|format(prediction.accuracy_pct) }}%{% else %}N/A{% endif %}
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Directional Accuracy</span>
+      <div class="text-lg font-bold text-success font-display" id="metricAccuracy">
+        {% if prediction and prediction.dir_accuracy is not none %}{{ "%.1f"|format(prediction.dir_accuracy) }}%{% else %}N/A{% endif %}
       </div>
-      <span class="text-[10px] text-slate-400">100 − MAPE Score</span>
+      <span class="text-[10px] text-slate-400">Trend Direction Match</span>
     </div>
     <div class="p-3.5 rounded-xl bg-black/25 border border-white/5">
       <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Mean Abs Error (MAE)</span>
@@ -386,17 +386,12 @@
       <span class="text-[10px] text-slate-400">Root-mean-square dev</span>
     </div>
     <div class="p-3.5 rounded-xl bg-black/25 border border-white/5 col-span-2 sm:col-span-1">
-      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Directional Accuracy</span>
-      <div class="text-lg font-bold text-success font-display" id="metricDirAcc">
-        {% if prediction and prediction.dir_accuracy is not none %}{{ "%.1f"|format(prediction.dir_accuracy) }}%{% else %}N/A{% endif %}
+      <span class="text-[10px] font-bold text-muted uppercase tracking-wider block mb-0.5">Max Abs Error</span>
+      <div class="text-lg font-bold text-white font-display dynamic-price" id="metricMaxError"
+           data-raw="{{ prediction.max_error if (prediction and prediction.max_error is not none) else '' }}">
+        {% if prediction and prediction.max_error is not none %}{{ symbol }}{{ "%.2f"|format(prediction.max_error) }}{% else %}N/A{% endif %}
       </div>
-      <span class="text-[10px] text-slate-400" id="metricDirTrend">
-        {% if prediction and prediction.dir_match %}
-        <span class="text-success font-bold">Trend Direction Matched</span>
-        {% else %}
-        <span>Day-by-day trend</span>
-        {% endif %}
-      </span>
+      <span class="text-[10px] text-slate-400">Worst session deviation</span>
     </div>
   </div>
 
@@ -1080,17 +1075,17 @@
           if (data.prediction) {
             const p = data.prediction;
             const accEl = document.getElementById('aiAccuracyScore');
-            if (accEl && p.accuracy_pct != null) {
-              accEl.innerText = `${parseFloat(p.accuracy_pct).toFixed(1)}%`;
+            if (accEl && p.dir_accuracy != null) {
+              accEl.innerText = `${parseFloat(p.dir_accuracy).toFixed(1)}%`;
             }
             const mapeSub = document.getElementById('aiMapeSub');
             if (mapeSub && p.mape != null) {
-              mapeSub.innerText = `(MAPE: ${parseFloat(p.mape).toFixed(2)}%)`;
+              mapeSub.innerText = `(MAPE Error: ${parseFloat(p.mape).toFixed(2)}%)`;
             }
 
             const metAcc = document.getElementById('metricAccuracy');
-            if (metAcc && p.accuracy_pct != null) {
-              metAcc.innerText = `${parseFloat(p.accuracy_pct).toFixed(1)}%`;
+            if (metAcc && p.dir_accuracy != null) {
+              metAcc.innerText = `${parseFloat(p.dir_accuracy).toFixed(1)}%`;
             }
             const metMae = document.getElementById('metricMae');
             if (metMae && p.mae != null) {
@@ -1106,15 +1101,10 @@
               metRmse.setAttribute('data-raw', p.rmse);
               metRmse.innerText = fmtPrice(p.rmse, currentDisplay);
             }
-            const metDir = document.getElementById('metricDirAcc');
-            if (metDir && p.dir_accuracy != null) {
-              metDir.innerText = `${parseFloat(p.dir_accuracy).toFixed(1)}%`;
-            }
-            const metTrend = document.getElementById('metricDirTrend');
-            if (metTrend) {
-              metTrend.innerHTML = p.dir_match
-                ? '<span class="text-success font-bold">Trend Direction Matched</span>'
-                : '<span>Day-by-day trend</span>';
+            const metMax = document.getElementById('metricMaxError');
+            if (metMax && p.max_error != null) {
+              metMax.setAttribute('data-raw', p.max_error);
+              metMax.innerText = fmtPrice(p.max_error, currentDisplay);
             }
 
             buildPredictionTables(p);
